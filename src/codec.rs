@@ -14,10 +14,15 @@ impl Encoder<Command> for PeerCodec {
         Ok(
             match item {
                 // TODO make keys exchange
-                Command::Handshake => {
+                Command::RequestHandshake => {
                     debug!("trying to perform handshake");
                     buf.reserve(6);
-                    buf.put(&b"secret"[..]);
+                    buf.put(&b"handshake"[..]);
+                }
+                Command::ApproveHandshake => {
+                    debug!("handshake approved");
+                    buf.reserve(8);
+                    buf.put(&b"approved"[..]);
                 }
                 Command::GetPeers => {}
                 Command::SendMessage => {}
@@ -30,11 +35,23 @@ impl Encoder<Command> for PeerCodec {
 }
 
 impl Decoder for PeerCodec {
-    type Item = ();
+    type Item = Command;
     type Error = Box<dyn Error>;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        let
-        match src.reader().read() {  }
+        let mut cmd_buf = [0u8, 1];
+        let _ = src.reader().read(&mut cmd_buf);
+        match cmd_buf[0] {
+            0 => {
+                debug!("command 'handshake' received");
+                Ok(Some(Command::RequestHandshake))
+             },
+            1 => Ok(Some(Command::GetPeers)),
+            2 => Ok(Some(Command::SendMessage)),
+            3 => Ok(Some(Command::SendFile)),
+            4 => Ok(Some(Command::StartAudioCall)),
+            5 => Ok(Some(Command::StartVideoCall)),
+            a @ _ => Ok(Some(Command::Other(a))),
+        }
     }
 }

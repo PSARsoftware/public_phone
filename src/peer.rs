@@ -1,16 +1,18 @@
-use std::collections::HashSet;
+use std::collections::{HashMap};
 use std::error::Error;
 use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tracing::{debug, error, info};
+use uuid::{Uuid};
+use crate::command::Command;
 use crate::connection::Connection;
 
 pub struct Peer {
     /// listening address
     socket_addr: SocketAddr,
-    connections: HashSet<Connection>,
+    connections: HashMap<Uuid, Connection>,
     state: PeerState,
 }
 
@@ -25,17 +27,17 @@ impl Peer {
     }
 
     pub async fn start(&mut self) -> Result<(), Box<dyn Error>> {
+        info!("peer 🙏 started");
         let listener = TcpListener::bind(self.socket_addr).await?;
         loop {
             match listener.accept().await {
                 Ok((stream, addr)) => {
-                    debug!("peer {addr} connected");
-                    let mut new_conn = Connection::from_stream(stream)?;
-                    let handled = Self::handle_incoming_connection(&mut new_conn).await;
-                    if handled.is_err() {
-                        let err = handled.err().unwrap();
-                        error!("error while handling connection : {err}");
-                    }
+                    //tokio::spawn(async move {
+                        debug!("peer {addr} connected");
+                        let mut conn = Connection::new(addr);
+                        // handle incoming connection
+                        conn.accept(stream).await;
+                    //});
                 }
                 Err(e) => {
                     error!("{e}")
@@ -45,16 +47,12 @@ impl Peer {
     }
 
     // TODO here we need to send different commands to remote peer
-    pub async fn send_data_to_remote_peer<Data: serde::Serialize>(data: &Data)
+    pub async fn send_command_to_remote_peer(&mut self, command: Command, conn_id: Uuid)
         -> Result<(), Box<dyn Error>> {
-        unimplemented!()
+        let connection = self.connections.get_mut(&conn_id)
+            .ok_or(Box::new(io::Error::new(ErrorKind::InvalidData, "no such connection")))?;
+        connection.send_command_to_peer(command).await
     }
-
-    async fn handle_incoming_connection(conn: &mut Connection) -> Result<(), Box<dyn Error>> {
-        //let read = &conn.read;
-        unimplemented!()
-    }
-
 }
 
 // TODO here we need to invent a way to simultaneously receive messages and do other things

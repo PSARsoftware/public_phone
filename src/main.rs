@@ -27,9 +27,17 @@ async fn main() {
     let port = args.port;
     let socket_addr = format!("127.0.0.1:{}", port);
     let peer_addr = SocketAddr::from_str(&socket_addr);
-    //let connect = args.connect;
+    let connect = args.connect;
 
-    let mut peer = Peer::new(peer_addr.expect("couldn't parse socket address"));
+    let mut peer = Peer::new(peer_addr.expect("couldn't parse peer socket address"));
+    if connect.is_some() {
+        let connect = connect.unwrap();
+        let socket_addr = format!("127.0.0.1:{}", connect);
+        let peer_addr = SocketAddr::from_str(&socket_addr)
+            .expect("couldn't parse connecting peer socket address");
+        let res = peer.connect_to_peer(peer_addr).await;
+        info!{"peer {peer_addr} connected: {res:?}"}
+    }
     let _ = peer.start().await;
 }
 

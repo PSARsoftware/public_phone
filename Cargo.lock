@@ -450,6 +450,7 @@ dependencies = [
  "bytes 1.6.0",
  "clap",
  "futures",
+ "scc",
  "serde",
  "serde_derive",
  "tokio",
@@ -475,6 +476,12 @@ name = "rustc-demangle"
 version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d626bb9dae77e28219937af045c257c28bfd3f69333c512553507f5f9798cb76"
+
+[[package]]
+name = "scc"
+version = "2.0.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4c10d60d2fd9faf0e8b6540623f5e502343bde2ac585a7d158b3db24d93fcbe"
 
 [[package]]
 name = "serde"

@@ -1,18 +1,18 @@
 use std::collections::{HashMap};
 use std::error::Error;
 use std::io;
-use std::io::ErrorKind;
 use std::net::SocketAddr;
-use tokio::net::TcpListener;
-use tracing::{debug, error, info};
-use uuid::{Uuid};
+use std::sync::{Arc, Mutex};
+use tokio::net::{TcpListener};
+//use tokio::sync::Mutex;
+use tracing::{debug, error, info, warn};
 use crate::command::Command;
-use crate::connection::Connection;
+use crate::connection::{Connection, ConnectionId};
 
 pub struct Peer {
     /// listening address
     socket_addr: SocketAddr,
-    connections: HashMap<Uuid, Connection>,
+    connections: Arc<Mutex<HashMap<ConnectionId, Connection>>>,
     state: PeerState,
 }
 
@@ -29,15 +29,40 @@ impl Peer {
     pub async fn start(&mut self) -> Result<(), Box<dyn Error>> {
         info!("peer 🙏 started");
         let listener = TcpListener::bind(self.socket_addr).await?;
+        // start listening user commands
+        let connections = self.connections.clone();
+        std::thread::spawn(move || {
+            let mut cmd = String::new();
+            loop {
+                if io::stdin().read_line(&mut cmd).is_err() {
+                    error!("could not read user command");
+                    continue
+                } else {
+                    match cmd.as_str() {
+                        "message" => {
+                            let mut msg = String::new();
+                            let _msg = io::stdin().read_line(&mut msg);
+                            let mut conn_name = String::new();
+                            let _conn = io::stdin().read_line(&mut conn_name);
+                            if let Some(mut connection) = connections.lock().unwrap().get_mut(&conn_name) {
+                                let _ = Self::send_command_to_remote_peer(&mut connection, Command::SendMessage(msg));
+                            } else {
+                                warn!("no {conn_name} connection")
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        });
+        // start listening incoming connections
         loop {
             match listener.accept().await {
                 Ok((stream, addr)) => {
-                    //tokio::spawn(async move {
-                        debug!("peer {addr} connected");
-                        let mut conn = Connection::new(addr);
-                        // handle incoming connection
-                        conn.accept(stream).await;
-                    //});
+                    debug!("peer {addr} connected");
+                    let mut conn = Connection::new(addr);
+                    // handle incoming connection
+                    conn.accept(stream).await;
                 }
                 Err(e) => {
                     error!("{e}")
@@ -47,11 +72,18 @@ impl Peer {
     }
 
     // TODO here we need to send different commands to remote peer
-    pub async fn send_command_to_remote_peer(&mut self, command: Command, conn_id: Uuid)
+    pub async fn send_command_to_remote_peer(connection: &mut Connection, command: Command)
         -> Result<(), Box<dyn Error>> {
-        let connection = self.connections.get_mut(&conn_id)
-            .ok_or(Box::new(io::Error::new(ErrorKind::InvalidData, "no such connection")))?;
         connection.send_command_to_peer(command).await
+    }
+
+    pub async fn connect_to_peer(&mut self, peer_addr: SocketAddr) -> Result<(), io::Error> {
+        let mut connection = Connection::new(peer_addr);
+        connection.connect().await?;
+        // TODO check deadlock possibility
+        let mut connections = self.connections.lock().unwrap();
+        connections.insert(connection.id.clone(), connection);
+        Ok(())
     }
 }
 

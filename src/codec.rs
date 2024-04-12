@@ -1,5 +1,8 @@
 use std::error::Error;
-use std::io::Read;
+use std::io;
+use std::io::{ErrorKind, Read};
+use byteorder::{BigEndian, ReadBytesExt};
+use byteorder::ByteOrder;
 use tokio_util::codec::{Decoder, Encoder};
 use bytes::{Buf, BufMut, BytesMut};
 use tracing::debug;
@@ -25,7 +28,9 @@ impl Encoder<Command> for PeerCodec {
                     buf.put(&b"approved"[..]);
                 }
                 Command::GetPeers => {}
-                Command::SendMessage => {}
+                Command::SendMessage(msg) => {
+                    let _ = write_msg(&msg, buf);
+                }
                 Command::SendFile => {}
                 Command::StartAudioCall => {}
                 Command::StartVideoCall => {}
@@ -47,11 +52,42 @@ impl Decoder for PeerCodec {
                 Ok(Some(Command::RequestHandshake))
              },
             1 => Ok(Some(Command::GetPeers)),
-            2 => Ok(Some(Command::SendMessage)),
+            2 => {
+                let msg = read_msg(src)?;
+                Ok(Some(Command::SendMessage(msg)))
+            },
             3 => Ok(Some(Command::SendFile)),
             4 => Ok(Some(Command::StartAudioCall)),
             5 => Ok(Some(Command::StartVideoCall)),
             a @ _ => Ok(Some(Command::Other(a))),
         }
     }
+}
+
+fn read_msg(src: &mut BytesMut) -> Result<String, Box<dyn Error>> {
+    let size = {
+        if src.len() < 2 {
+            return Err(Box::new(io::Error::new(ErrorKind::InvalidInput, "invalid msg len")));
+        }
+        BigEndian::read_u16(src.as_ref()) as usize
+    };
+
+    if src.len() >= size + 2 {
+        let _ = src.split_to(2);
+        let buf = src.split_to(size);
+        // TODO find better way
+        Ok(String::from_utf8(Vec::from(buf))?)
+    } else {
+        Err(Box::new(io::Error::new(ErrorKind::InvalidInput, "invalid msg data")))
+    }
+}
+
+fn write_msg(msg: &str, dst: &mut BytesMut) -> Result<(), io::Error> {
+    let msg_ref: &[u8] = msg.as_ref();
+
+    dst.reserve(msg_ref.len() + 2);
+    dst.put_u16(msg_ref.len() as u16);
+    dst.put(msg_ref);
+
+    Ok(())
 }

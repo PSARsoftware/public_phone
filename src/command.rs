@@ -1,7 +1,8 @@
 
 #[derive(PartialEq, Debug)]
 pub enum Command {
-    RequestHandshake,
+    // request handshake and tell name
+    RequestHandshake(String),
     ApproveHandshake,
     GetPeers,
     SendMessage(String),
@@ -14,14 +15,14 @@ pub enum Command {
 impl From<u8> for Command {
     fn from(byte: u8) -> Command {
         match byte {
-            0 => Command::RequestHandshake,
-            2 => Command::ApproveHandshake,
-            3 => Command::GetPeers,
+            0 => Command::RequestHandshake(String::new()),
+            1 => Command::ApproveHandshake,
+            2 => Command::GetPeers,
             // TODO not idiomatic
-            4 => Command::SendMessage(String::new()),
-            5 => Command::SendFile,
-            6 => Command::StartAudioCall,
-            7 => Command::StartVideoCall,
+            3 => Command::SendMessage(String::new()),
+            4 => Command::SendFile,
+            5 => Command::StartAudioCall,
+            6 => Command::StartVideoCall,
             _ => Command::Other(byte),
         }
     }
@@ -30,7 +31,7 @@ impl From<u8> for Command {
 impl Into<u8> for Command {
     fn into(self) -> u8 {
         match self {
-            Command::RequestHandshake => 0,
+            Command::RequestHandshake(_) => 0,
             Command::ApproveHandshake => 1,
             Command::GetPeers => 2,
             Command::SendMessage(_) => 3,

@@ -25,11 +25,12 @@ async fn main() {
 
     let args = Args::parse();
     let port = args.port;
+    let peer_name = args.name;
     let socket_addr = format!("127.0.0.1:{}", port);
     let peer_addr = SocketAddr::from_str(&socket_addr);
     let connect = args.connect;
 
-    let mut peer = Peer::new(peer_addr.expect("couldn't parse peer socket address"));
+    let mut peer = Peer::new(peer_addr.expect("couldn't parse peer socket address"), peer_name);
     if connect.is_some() {
         let connect = connect.unwrap();
         let socket_addr = format!("127.0.0.1:{}", connect);
@@ -48,6 +49,9 @@ struct Args {
     /// Port to start peer on
     #[arg(long)]
     port: u32,
+    /// peer name
+    #[arg(long)]
+     name: String,
     /// The 'connect_to' arg is None if this peer is first in the network
     #[arg(long)]
     connect: Option<String>,

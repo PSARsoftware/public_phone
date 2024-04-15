@@ -34,23 +34,36 @@ impl Peer {
         std::thread::spawn(move || {
             let mut cmd = String::new();
             loop {
+                println!("enter command%: \n 1 - send message to peer");
                 if io::stdin().read_line(&mut cmd).is_err() {
                     error!("could not read user command");
                     continue
                 } else {
-                    match cmd.as_str() {
-                        "message" => {
-                            let mut msg = String::new();
-                            let _msg = io::stdin().read_line(&mut msg);
+                    match cmd.as_str().trim_matches(|c| c == '\n') {
+                        "1" => {
                             let mut conn_name = String::new();
-                            let _conn = io::stdin().read_line(&mut conn_name);
-                            if let Some(mut connection) = connections.lock().unwrap().get_mut(&conn_name) {
-                                let _ = Self::send_command_to_remote_peer(&mut connection, Command::SendMessage(msg));
-                            } else {
-                                warn!("no {conn_name} connection")
+                            let mut connections = connections.lock().unwrap();
+                            // TODO fix these clones
+                            let conns = connections.iter()
+                                .map(|c| c.0.name.clone())
+                                .fold(String::new(), |acc, c| acc.clone() + " " + &c);
+                            println!("\n available connections: {}", conns);
+                            if !conns.is_empty() {
+                                println!("enter connection name:");
+                                let _conn = io::stdin().read_line(&mut conn_name);
+                                if let Some(mut connection) = connections.get_mut(&conn_name) {
+                                    println!("enter message:");
+                                    let mut msg = String::new();
+                                    let _ = io::stdin().read_line(&mut msg);
+                                    let _ = Self::send_command_to_remote_peer(&mut connection, Command::SendMessage(msg));
+                                } else {
+                                    warn!("no {conn_name} connection")
+                                }
                             }
                         }
-                        _ => {}
+                        _ => {
+                            println!("wrong command")
+                        }
                     }
                 }
             }

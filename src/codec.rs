@@ -17,10 +17,11 @@ impl Encoder<Command> for PeerCodec {
         Ok(
             match item {
                 // TODO make keys exchange
-                Command::RequestHandshake => {
+                Command::RequestHandshake(name) => {
                     debug!("trying to perform handshake");
-                    buf.reserve(6);
-                    buf.put(&b"handshake"[..]);
+                    buf.reserve(10 + name.len());
+                    buf.put(&b"peer_name="[..]);
+                    buf.put(name.as_bytes())
                 }
                 Command::ApproveHandshake => {
                     debug!("handshake approved");
@@ -49,7 +50,13 @@ impl Decoder for PeerCodec {
         match cmd_buf[0] {
             0 => {
                 debug!("command 'handshake' received");
-                Ok(Some(Command::RequestHandshake))
+                // TODO fix bad code
+                let msg = read_msg(src)?;
+                if !msg.starts_with("peer_name=") {
+                    return Err(Box::new(io::Error::new(ErrorKind::InvalidInput, "handshake failed")))
+                }
+                let msg = &msg[10..];
+                Ok(Some(Command::RequestHandshake(String::from(msg))))
              },
             1 => Ok(Some(Command::GetPeers)),
             2 => {

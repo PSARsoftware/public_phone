@@ -17,6 +17,8 @@ pub struct Connection {
     pub id: ConnectionId,
     /// remote peer address
     pub remote_peer_addr: SocketAddr,
+    /// user name
+    pub user_name: String,
     /// connected user name
     pub remote_user_name: String,
     /// stream to write messages to remote peer
@@ -29,7 +31,8 @@ pub struct Connection {
 pub struct ConnectionId {
     /// unique id for remote connection used by current peer
     pub id: Uuid,
-    pub name: String,
+    /// peer_name
+    pub peer_name: String,
 }
 
 impl Borrow<Uuid> for ConnectionId {
@@ -40,7 +43,7 @@ impl Borrow<Uuid> for ConnectionId {
 
 impl Borrow<String> for ConnectionId {
     fn borrow(&self) -> &String {
-        &self.name
+        &self.peer_name
     }
 }
 
@@ -50,19 +53,20 @@ impl ConnectionId {
         info!("new connection id : {id}");
         Self {
             id,
-            name: String::new(),
+            peer_name: String::new(),
         }
     }
 }
 
 impl Connection {
 
-    pub fn new(remote_peer_addr: SocketAddr) -> Self {
+    pub fn new(remote_peer_addr: SocketAddr, user_name: String) -> Self {
 
         Self {
             id: ConnectionId::new(),
             remote_peer_addr,
             remote_user_name: String::from(""),
+            user_name,
             sink: None,
             stream: None
         }
@@ -75,6 +79,10 @@ impl Connection {
         let (sink, input) = codec.framed(stream).split();
         self.sink = Some(sink);
         self.stream = Some(input);
+        // tell our name to connected peer
+        self.sink.as_mut().unwrap().send(Command::RequestHandshake(self.remote_user_name.clone()))
+            .await
+            .expect("could not send peer name");
         Ok(())
     }
 
@@ -87,7 +95,7 @@ impl Connection {
             while let Some(Ok(command)) = input.next().await {
                 debug!("Command {:?}", command);
                 match command {
-                    Command::RequestHandshake => {
+                    Command::RequestHandshake(name) => {
                         debug!("Command handshake received");
                         if let Err(error) = sink.send(Command::ApproveHandshake).await {
                             debug!("An error occurred {}", error);
